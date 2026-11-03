@@ -47,6 +47,7 @@ ask() {         # ask KEY "what it is" [--no-sensitive]
 echo "== Sign-in and the database"
 has DATABASE_URL && echo "  ok  DATABASE_URL" || echo "  MISSING DATABASE_URL: connect the Neon database in Vercel → Storage"
 has HUB_SECRET && echo "  ok  HUB_SECRET" || put HUB_SECRET "$(random)"
+has CRON_SECRET && echo "  ok  CRON_SECRET" || put CRON_SECRET "$(random)"
 ask HUB_PASSWORD "shared fallback password, 12+ characters"
 ask HUB_BOOTSTRAP_EMAILS "comma-separated emails that can sign in first" --no-sensitive
 ask POS_PASSWORD "the password sellers type on the till"

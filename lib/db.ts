@@ -137,6 +137,27 @@ export function ensureSchema() {
       // A meeting recording on its way to Notion. `status` is the next step
       // to run (upload, transcribe, notes, notion, done), so a failed one
       // carries on from there; `running_since` stops two runs at once.
+      q`CREATE TABLE IF NOT EXISTS hub_marketing_docs (
+        tool        TEXT PRIMARY KEY,
+        doc         JSONB NOT NULL,
+        version     INT NOT NULL DEFAULT 1,
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_by  TEXT
+      )`,
+      q`CREATE TABLE IF NOT EXISTS hub_calendar (
+        id           SERIAL PRIMARY KEY,
+        date         TEXT NOT NULL,
+        channel      TEXT NOT NULL,
+        title        TEXT NOT NULL,
+        status       TEXT NOT NULL DEFAULT 'idea',
+        owner        TEXT,
+        tool         TEXT,
+        notes        TEXT,
+        source       TEXT,
+        reminded_on  TEXT,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`,
+      q`CREATE INDEX IF NOT EXISTS hub_calendar_date ON hub_calendar (date)`,
       q`CREATE TABLE IF NOT EXISTS hub_meetings (
         id           TEXT PRIMARY KEY,
         title        TEXT NOT NULL,

@@ -94,6 +94,37 @@ mid-year and end-of-year reports. Cash is the only money there is.
   they aren't counted twice.
 - **Export CSV** for the report.
 
+## Marketing
+
+Marketing HQ (`/marketing`) has six tools: Overview (charter, key dates,
+sign-offs, launch numbers, credited roles), Announcement, Flavour drop, How-to
+carousel, One-month post and CV kit. Each is one JSON document in
+`hub_marketing_docs`, saved a moment after you stop typing with a version
+number. If two people edit the same tool, the second is told who saved first and
+can reload theirs or overwrite. The pictures are drawn in the browser and no
+image is ever stored (a flavour drop saves the capsule's sku, and a picture
+dropped in is for that session only).
+
+- **People:** the team is the People page for this term. How each person is
+  credited, and anyone credited who isn't on it (advisors, the library), is kept
+  in the Overview document.
+- **Names stay out of this repo.** The suggested titles and CV bullets are in the
+  database. *Import* takes a private JSON file (`{"docs": {"overview": {...}}}`),
+  or the old single-file tool's browser data. It previews first and never
+  overwrites a saved tool unless you ask.
+- **Launch numbers and prices** come from the kiosk, and the last ones it gave are
+  kept for when it's off. Type over a number to use your own.
+- **Dates:** *Edit dates* on the Overview. The announcement's date is its own
+  field, and the first save of a tool freezes its default copy.
+
+The content calendar (`/marketing/calendar`) is a month grid, an agenda on
+phones, with status idea, draft, ready or posted, an owner, and the tool that
+makes the asset. It suggests posts from what the machine did: the 100th (250th,
+500th, 1000th) coffee, a newly loaded flavour, and one month since the first
+coffee. On a morning a post is due, `/api/calendar/remind` sends one ntfy message
+naming the owner. It runs on a Vercel cron at 06:00 UTC and refuses to run
+without `CRON_SECRET`.
+
 ## Meetings
 
 *+ New recording*: pick board / Dean / other, the date, who was there, and the
@@ -253,4 +284,6 @@ still sells offline, and the hub pages say the database is missing.
 - `lib/finance.ts`, `lib/sheet-import.ts`: the ledger and the Google Sheet paste
 - `lib/meetings.ts`, `lib/gemini.ts`, `lib/notion.ts`: the meetings pipeline
 - `lib/kiosk.ts`, `app/api/kiosk/*`: the kiosk's reports and commands
+- `lib/marketing.ts`, `lib/content-calendar.ts`, `app/api/marketing/*`, `app/api/calendar/*`: Marketing HQ and the calendar
+- `components/marketing/`: their tools, plain DOM modules mounted by `MarketingHost.tsx`
 - `lib/files.ts`, `app/api/files/*`: private uploads and downloads

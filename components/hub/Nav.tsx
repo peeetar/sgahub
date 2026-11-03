@@ -15,6 +15,7 @@ const ITEMS: Item[] = [
   { href: "/finance", label: "Finance", icon: "€" },
   { href: "/meetings", label: "Meetings", icon: "◉" },
   { href: "/kiosk", label: "Coffee kiosk", icon: "☕" },
+  { href: "/marketing", label: "Marketing", icon: "✦" },
   { href: "/documents", label: "Documents", icon: "▤" },
   { href: "/reports", label: "Year-end report", icon: "▧", soon: "PDF report for the last meeting of the year" },
   { href: "/people", label: "People", icon: "◍" },
