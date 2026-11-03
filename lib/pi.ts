@@ -78,4 +78,6 @@ export type PiStudent = {
 };
 export type PiTimelineItem = { id: number; at: string; kind: string; reason?: string | null; amount: number; balance: number; cash_cents?: number | null; actor?: string | null; state?: string | null; sku?: string | null };
 export type PiStudentDetail = { student: PiStudent; timeline: PiTimelineItem[]; signup: { credits?: number } | null; history_matches: boolean };
+export type PiUpkeepTask = { id: number; name: string; every_coffees: number | null; every_days: number | null; state: "due" | "soon" | "ok"; summary: string };
+export type PiBanner = { text: string; state: "off" | "showing" | "scheduled" | "expired"; from_local: string | null; to_local: string | null };
 export type PiConfig = { bundles: { cents: number; coffees: number }[]; student_id_length: number; column_capacity: number };

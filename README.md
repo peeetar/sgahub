@@ -136,6 +136,9 @@ they're for whoever looks after the Pi, over SSH. The Pi's `services/hub_api.py`
 is the list. With the Pi offline the live pages say so, and *Status* falls back
 to the last report below.
 
+**Upkeep** (`/kiosk/upkeep`) is the machine's recurring jobs, counted in coffees,
+days, or whichever comes first, and the message on the kiosk's attract screen.
+
 **Sell** is the coffee cash box: count it in, sell, close it with a recount. Sales
 and shifts are saved here first (`lib/sell.ts`), then sent to the Pi, which counts
 each id once however often it arrives. With the Pi off, selling still works and
@@ -204,6 +207,9 @@ ntfy topic.
    address, then add `https://sgahub.vercel.app/pos` to its home screen. Unsynced
    sales don't carry over, because the new address has its own offline storage.
    Retire the old till's Vercel project once every tablet has moved.
+
+`scripts/finish-setup.sh` does steps 3 and 7 from a laptop: it asks only for what's
+missing, makes the tokens, and with `--pi-url` gives the Hub the Pi's address.
 
 Every push to `main` deploys on Vercel. CI (`.github/workflows/ci.yml`) runs
 the typecheck and build on every push and PR.
