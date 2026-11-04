@@ -1,20 +1,21 @@
 // Server only. Board sign-in for the hub.
 //
 // Everyone on the board has the same access. Who counts as "the board" is the
-// People page: anyone listed for the current term with an email can ask for a
-// sign-in link. HUB_BOOTSTRAP_EMAILS lets the first person in before anyone is
-// listed. HUB_PASSWORD, if set, is a shared fallback for when email is down.
+// People page: anyone listed for the current term who has been given a
+// username and password there. No email is sent, so no domain is needed.
+// HUB_PASSWORD, if set, is an emergency shared password, and is also how the
+// very first person gets in before anyone has a login.
 //
 // The till (/pos) has its own password and session (lib/session.ts), because
 // volunteers who aren't on the board sell merch too.
-import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
+import { promisify } from "node:util";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { currentTerm, ensureSchema, sql } from "./db";
 
 export const HUB_COOKIE = "hub_session";
 const SESSION_DAYS = 30;
-export const LINK_MINUTES = 15;
 
 function secret(): string {
   const s = process.env.HUB_SECRET || "";
@@ -29,11 +30,14 @@ function safeEqual(a: string, b: string) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-export type Session = { email: string; exp: number };
+/** `email` is the person's identity everywhere (audit trails, the Pi). It is
+ *  their email if they have one on People, otherwise their username.
+ *  `username` is set only for a personal login, not the shared password. */
+export type Session = { email: string; username?: string; exp: number };
 
-export function issueSession(email: string): { value: string; maxAge: number } {
+export function issueSession(email: string, username?: string): { value: string; maxAge: number } {
   const maxAge = SESSION_DAYS * 86400;
-  const payload = Buffer.from(JSON.stringify({ email, exp: Date.now() + maxAge * 1000 })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ email, username, exp: Date.now() + maxAge * 1000 })).toString("base64url");
   return { value: `${payload}.${mac(payload)}`, maxAge };
 }
 
@@ -63,52 +67,55 @@ export async function currentSession(): Promise<Session | null> {
   return readSession((await cookies()).get(HUB_COOKIE)?.value);
 }
 
-// --- who may sign in ---------------------------------------------------------
+// --- personal logins ---------------------------------------------------------
 
 export const normEmail = (e: string) => e.trim().toLowerCase();
+export const normUsername = (u: string) => u.trim().toLowerCase();
+export const USERNAME_RE = /^[a-z0-9._-]{3,32}$/;
+export const PASSWORD_MIN = 10;
 
-const bootstrap = () => (process.env.HUB_BOOTSTRAP_EMAILS || "").split(",").map(normEmail).filter(Boolean);
+const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number, o: { N: number; r: number; p: number }) => Promise<Buffer>;
+const SCRYPT = { N: 16384, r: 8, p: 1 };
 
-export async function isBoardEmail(email: string): Promise<boolean> {
-  const e = normEmail(email);
-  if (!e.includes("@")) return false;
-  if (bootstrap().includes(e)) return true;
+/** `scrypt$N$r$p$salt$key`. Salted and slow on purpose, so a database leak
+ *  can't be turned into passwords cheaply. */
+export async function hashPassword(pw: string): Promise<string> {
+  const salt = randomBytes(16);
+  const key = await scrypt(pw, salt, 32, SCRYPT);
+  return `scrypt$${SCRYPT.N}$${SCRYPT.r}$${SCRYPT.p}$${salt.toString("base64url")}$${key.toString("base64url")}`;
+}
+
+export async function verifyPassword(pw: string, stored: string): Promise<boolean> {
+  const [alg, n, r, p, salt, key] = stored.split("$");
+  if (alg !== "scrypt" || !salt || !key) return false;
+  const want = Buffer.from(key, "base64url");
+  try {
+    const got = await scrypt(pw, Buffer.from(salt, "base64url"), want.length, { N: +n, r: +r, p: +p });
+    return got.length === want.length && timingSafeEqual(got, want);
+  } catch {
+    return false;
+  }
+}
+
+// Checked against when the username doesn't exist, so "no such user" and
+// "wrong password" take the same time.
+let dummy: Promise<string> | null = null;
+
+/** The identity to sign in as ({email, username}), or null. Only people on the
+ *  current term's board, with a password set, can get in. */
+export async function passwordLogin(username: string, password: string): Promise<{ email: string; username: string } | null> {
+  const u = normUsername(username);
   await ensureSchema();
   const term = await currentTerm();
-  const rows = await sql()`SELECT 1 FROM hub_people WHERE lower(email) = ${e} AND term = ${term} LIMIT 1`;
-  return rows.length > 0;
+  const rows = (await sql()`SELECT email, username, password_hash FROM hub_people
+    WHERE username = ${u} AND term = ${term} LIMIT 1`) as { email: string | null; username: string; password_hash: string | null }[];
+  const row = rows[0];
+  dummy ??= hashPassword(randomBytes(12).toString("base64url"));
+  const ok = await verifyPassword(password, row?.password_hash || (await dummy));
+  return row && row.password_hash && ok ? { email: row.email || row.username, username: row.username } : null;
 }
 
-// --- sign-in links -----------------------------------------------------------
-
-const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
-
-/** A single-use token. Only its hash is stored, so a database leak can't be
- *  turned into a sign-in. */
-export async function createLoginToken(email: string): Promise<string> {
-  await ensureSchema();
-  const token = randomBytes(32).toString("base64url");
-  const q = sql();
-  await q.transaction([
-    q`DELETE FROM hub_login_tokens WHERE expires_at < now() - interval '1 day'`,
-    q`INSERT INTO hub_login_tokens (hash, email, expires_at)
-      VALUES (${hashToken(token)}, ${normEmail(email)}, now() + make_interval(mins => ${LINK_MINUTES}))`,
-  ]);
-  return token;
-}
-
-/** Spend a token. Returns the email it was for, or null if it is unknown,
- *  expired or already used. The update is the check, so two clicks can't
- *  both win. */
-export async function consumeLoginToken(token: string): Promise<string | null> {
-  await ensureSchema();
-  const rows = (await sql()`
-    UPDATE hub_login_tokens SET used_at = now()
-    WHERE hash = ${hashToken(token)} AND used_at IS NULL AND expires_at > now()
-    RETURNING email`) as { email: string }[];
-  return rows[0]?.email ?? null;
-}
-
+/** The emergency shared password. */
 export function sharedPasswordMatches(given: string): boolean {
   const want = process.env.HUB_PASSWORD || "";
   return want.length >= 12 && safeEqual(want, given);

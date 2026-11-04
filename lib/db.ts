@@ -4,7 +4,7 @@
 // and pulls everyone else's rows back. One table holds every kind of till row
 // as JSON; the data is small and the maths happens on the tablet.
 //
-// The `hub_*` tables are the board side: people, roles, sign-in links, alert
+// The `hub_*` tables are the board side: people, roles, sign-in logins, alert
 // state and settings. They are plain tables because the server reads them.
 import { neon, neonConfig } from "@neondatabase/serverless";
 import { ROLES } from "./roles";
@@ -50,12 +50,10 @@ export function ensureSchema() {
         created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
       )`,
       q`CREATE INDEX IF NOT EXISTS hub_people_term ON hub_people (term)`,
-      q`CREATE TABLE IF NOT EXISTS hub_login_tokens (
-        hash        TEXT PRIMARY KEY,
-        email       TEXT NOT NULL,
-        expires_at  TIMESTAMPTZ NOT NULL,
-        used_at     TIMESTAMPTZ
-      )`,
+      // Per-person sign-in: a lowercase username and a salted scrypt hash.
+      q`ALTER TABLE hub_people ADD COLUMN IF NOT EXISTS username TEXT`,
+      q`ALTER TABLE hub_people ADD COLUMN IF NOT EXISTS password_hash TEXT`,
+      q`CREATE UNIQUE INDEX IF NOT EXISTS hub_people_username ON hub_people (username, term) WHERE username IS NOT NULL`,
       q`CREATE TABLE IF NOT EXISTS hub_alert_state (
         key    TEXT PRIMARY KEY,
         level  TEXT NOT NULL,

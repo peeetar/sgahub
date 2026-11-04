@@ -6,8 +6,7 @@ keeps working when the kiosk's Pi is offline. It is meant to be the single
 source of truth for stock and the system, and to be handed down to each new
 board without anyone having to rebuild it.
 
-Next.js on Vercel (`fra1`), Neon Postgres, ntfy for alerts, Resend for sign-in
-emails.
+Next.js on Vercel (`fra1`), Neon Postgres, ntfy for alerts, per-person username and password sign-in.
 
 ## What's in it
 
@@ -29,16 +28,15 @@ emails.
 
 Everyone on the board has the same access.
 
-- **Board** (`/login`): type your ACT email and get a one-time sign-in link,
-  valid for 15 minutes. Anyone listed on **People** for the current term with
-  an email can ask for one. The link opens a page with a *Sign in* button
-  rather than signing in straight away, because Outlook's link scanner would
-  otherwise use up the link before you click it. A device stays signed in for
-  30 days.
-- **Fallback**: if `HUB_PASSWORD` is set, *Use the shared password* signs in
-  without email.
-- **First sign-in**: before anyone is on People, the addresses in
-  `HUB_BOOTSTRAP_EMAILS` can sign in. Clear it once People is filled in.
+- **Board** (`/login`): each person has their own username and password, set
+  on **People** (open a person → Username, Password, *Generate*). Passwords are
+  stored as salted scrypt hashes, never in plain text. No email is sent, so no
+  domain or mail service is needed. A device stays signed in for 30 days, and
+  people change their own password under **Account**.
+- **Emergency password**: if `HUB_PASSWORD` is set (12+ characters), *Use the
+  emergency shared password* signs in without a username. It is how the first
+  person gets in before anyone has a login, and the way back if someone is
+  locked out. Keep it in the SGA password manager.
 - **Till** (`/pos`): its own password, `POS_PASSWORD`, because volunteers who
   aren't on the board sell too. It works the way the old merch till did: the
   first unlock needs internet, then it also works offline for 12 hours.
@@ -128,7 +126,7 @@ vending, PINs and balances all live on the Pi, in its own repo.
 **The hub calls the Pi, live** (`lib/pi.ts`). Everything under *Coffee kiosk*. Only
 this server talks to the Pi, over Tailscale Funnel at `PI_API_URL` with
 `PI_API_TOKEN`; browsers never do. Each call carries the signed-in board member's
-email for the Pi's audit log. Students stay on the Pi: the only student IDs kept
+email (or username, if they have no email) for the Pi's audit log. Students stay on the Pi: the only student IDs kept
 here are on the open shift's sales and any waiting or refused, and a closed shift
 is deleted once the Pi has it. Hardware tests, restarts, deploys,
 settings and editing the capsule catalogue aren't reachable this way on purpose:
@@ -194,13 +192,10 @@ ntfy topic.
 7. **Kiosk**: `KIOSK_TOKEN` (24+ random characters, the same as `HUB_TOKEN`
    on the Pi), and `PI_API_URL` and `PI_API_TOKEN` for
    the live pages (`deploy/funnel/README.md` in `sga-coffee-kiosk`).
-8. **Resend**: create the account with the SGA mailbox, verify a sending
-   domain, and set `RESEND_API_KEY` and `HUB_EMAIL_FROM`. Without a verified
-   domain, Resend only delivers to the account's own address. Until then, the
-   shared password works.
-9. Sign in with a bootstrap email or the shared password, go to **People**,
-   then *Paste a list*.
-10. Move the merch tablets together, between sales: sync each one on the old
+8. Set `HUB_PASSWORD` (12+ characters), sign in with it, go to **People**,
+   then *Paste a list*, and give each person a username and password (open
+   them → Username, Password). From then on everyone signs in as themselves.
+9. Move the merch tablets together, between sales: sync each one on the old
    address, then add `https://sgahub.vercel.app/pos` to its home screen. Unsynced
    sales don't carry over, because the new address has its own offline storage.
    Retire the old till's Vercel project once every tablet has moved.
@@ -211,12 +206,14 @@ the typecheck and build on every push and PR.
 ## Handing over to the next board
 
 1. On **People**, pick the new term and add the new board (or *Paste a list*:
-   `Role | Name | email | Notion user ID`).
+   `Role | Name | email | Notion user ID`), then give each person a username
+   and password.
 2. **Settings → Handover → Switch term.** From then on only the new board can
    sign in; last year's stays on record under its own term.
 3. Rotate `POS_PASSWORD`, `HUB_PASSWORD` and, if anyone leaving knew it, the
-   ntfy topic. Update the SGA password manager.
-4. Make sure the Vercel, Neon, Resend and GitHub accounts are owned by the SGA
+   ntfy topic. Change `HUB_SECRET` too: it signs every device out, including
+   the old board's. Update the SGA password manager.
+4. Make sure the Vercel, Neon and GitHub accounts are owned by the SGA
    mailbox, not a person.
 
 Names and emails live in the database, never in this repo.
@@ -243,7 +240,7 @@ still sells offline, and the hub pages say the database is missing.
 - `lib/db.ts`: schema and settings · `lib/roles.ts`: the SGA positions
 - `lib/calc.ts`, `lib/merge.ts`, `lib/local.ts`: the till's maths, merge rules and offline copy
 - `lib/merch.ts`, `lib/stock-alerts.ts`: what the hub reads from the till, and the ntfy alerts
-- `lib/notify.ts`: Resend and ntfy · `lib/time.ts`: Athens days and times
+- `lib/notify.ts`: ntfy · `lib/time.ts`: Athens days and times
 - `lib/finance.ts`, `lib/sheet-import.ts`: the ledger and the Google Sheet paste
 - `lib/meetings.ts`, `lib/gemini.ts`, `lib/notion.ts`: the meetings pipeline
 - `lib/kiosk.ts`, `app/api/kiosk/*`: the kiosk's reports and commands

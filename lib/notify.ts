@@ -1,25 +1,5 @@
-// Server only. Outgoing messages: sign-in emails through Resend, and board
-// alerts through ntfy (everyone on the board subscribes to one topic).
-
-export async function sendLoginEmail(to: string, link: string, minutes: number): Promise<"sent" | "not_configured" | "failed"> {
-  const key = process.env.RESEND_API_KEY;
-  const from = process.env.HUB_EMAIL_FROM;
-  if (!key || !from) return "not_configured";
-  const text = `Sign in to the SGA Hub:\n\n${link}\n\nThe link works once and for ${minutes} minutes. If you didn't ask for it, ignore this email.`;
-  const html = `<p>Sign in to the SGA Hub:</p><p><a href="${link}" style="display:inline-block;padding:12px 20px;background:#8B1A1A;color:#fff;border-radius:10px;text-decoration:none;font-weight:700">Sign in</a></p><p style="color:#6B6F76">The link works once and for ${minutes} minutes. If you didn't ask for it, ignore this email.</p>`;
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [to], subject: "Your SGA Hub sign-in link", text, html }),
-    });
-    if (!res.ok) console.error("resend", res.status, await res.text().catch(() => ""));
-    return res.ok ? "sent" : "failed";
-  } catch (err) {
-    console.error("resend", err);
-    return "failed";
-  }
-}
+// Server only. Outgoing messages: board alerts through ntfy (everyone on the
+// board subscribes to one topic). The hub sends no email.
 
 export type Alert = {
   title: string;
