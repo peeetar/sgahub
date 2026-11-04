@@ -7,6 +7,7 @@ const MESSAGES: Record<string, string> = {
   invalid: "Enter your username and password.",
   wrong: "Wrong username or password.",
   rate_limited: "Too many tries. Wait a few minutes.",
+  misconfigured: "The server is missing HUB_SECRET (it needs 32+ random characters). Set it in Vercel and redeploy.",
   server: "Something went wrong on the server. Try again in a minute.",
 };
 
@@ -24,7 +25,7 @@ export default function LoginForm({ passwordEnabled }: { passwordEnabled: boolea
         <PasswordForm submitLabel="Sign in" onSubmit={async (pw) => {
           const res = await fetch("/api/auth/password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw }) }).catch(() => null);
           if (res?.ok) { location.href = "/"; return null; }
-          return res?.status === 429 ? MESSAGES.rate_limited : res ? "Wrong password." : "No connection.";
+          return res?.status === 429 ? MESSAGES.rate_limited : res?.status === 503 ? MESSAGES.misconfigured : res ? "Wrong password." : "No connection.";
         }} />
         <button className="linkbtn" onClick={() => setShared(false)}>Use my username instead</button>
       </div>

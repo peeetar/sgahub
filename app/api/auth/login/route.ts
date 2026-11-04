@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { HUB_COOKIE, cookieOptions, issueSession, normUsername, passwordLogin, rateOk } from "@/lib/auth";
+import { HUB_COOKIE, cookieOptions, issueSession, normUsername, passwordLogin, rateOk, secretOk } from "@/lib/auth";
 
 /** Personal sign-in: username and password from the People page. */
 export async function POST(req: NextRequest) {
@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
   if (!rateOk("ip:" + ip, 20) || !rateOk("user:" + normUsername(username), 8)) {
     return NextResponse.json({ ok: false, code: "rate_limited" }, { status: 429 });
   }
+  if (!secretOk()) return NextResponse.json({ ok: false, code: "misconfigured" }, { status: 503 });
   try {
     const who = await passwordLogin(username, password);
     if (!who) return NextResponse.json({ ok: false, code: "wrong" }, { status: 401 });

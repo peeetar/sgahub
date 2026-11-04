@@ -18,9 +18,9 @@ export default function AccountForm() {
       });
     }}>
       <label className="lbl">Current password<input className="field field--sm" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} required /></label>
-      <label className="lbl">New password (10+ characters)<input className="field field--sm" type="password" autoComplete="new-password" minLength={10} value={next} onChange={(e) => setNext(e.target.value)} required /></label>
+      <label className="lbl">New password (8+ characters)<input className="field field--sm" type="password" autoComplete="new-password" minLength={8} value={next} onChange={(e) => setNext(e.target.value)} required /></label>
       {msg && <p className={msg.ok ? "muted" : "error"}>{msg.text}</p>}
-      <button className="btn btn--sm btn--primary" disabled={busy || !current || next.length < 10}>{busy ? "Saving…" : "Change password"}</button>
+      <button className="btn btn--sm btn--primary" disabled={busy || !current || next.length < 8}>{busy ? "Saving…" : "Change password"}</button>
     </form>
   );
 }

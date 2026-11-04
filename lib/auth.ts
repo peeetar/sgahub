@@ -17,6 +17,9 @@ import { currentTerm, ensureSchema, sql } from "./db";
 export const HUB_COOKIE = "hub_session";
 const SESSION_DAYS = 30;
 
+/** False when HUB_SECRET is missing or too short to sign sessions safely. */
+export const secretOk = () => (process.env.HUB_SECRET || "").length >= 32;
+
 function secret(): string {
   const s = process.env.HUB_SECRET || "";
   if (s.length < 32) throw new Error("HUB_SECRET must be set (32+ characters)");
@@ -42,7 +45,7 @@ export function issueSession(email: string, username?: string): { value: string;
 }
 
 export function readSession(token: string | undefined): Session | null {
-  if (!token || !process.env.HUB_SECRET) return null;
+  if (!token || !secretOk()) return null; // a bad secret signs everyone out instead of crashing every page
   const [payload, sig] = token.split(".");
   if (!payload || !sig || !safeEqual(mac(payload), sig)) return null;
   try {
@@ -72,7 +75,7 @@ export async function currentSession(): Promise<Session | null> {
 export const normEmail = (e: string) => e.trim().toLowerCase();
 export const normUsername = (u: string) => u.trim().toLowerCase();
 export const USERNAME_RE = /^[a-z0-9._-]{3,32}$/;
-export const PASSWORD_MIN = 10;
+export const PASSWORD_MIN = 8;
 
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number, o: { N: number; r: number; p: number }) => Promise<Buffer>;
 const SCRYPT = { N: 16384, r: 8, p: 1 };
@@ -118,7 +121,7 @@ export async function passwordLogin(username: string, password: string): Promise
 /** The emergency shared password. */
 export function sharedPasswordMatches(given: string): boolean {
   const want = process.env.HUB_PASSWORD || "";
-  return want.length >= 12 && safeEqual(want, given);
+  return want.length >= PASSWORD_MIN && safeEqual(want, given);
 }
 
 // Best effort: per function instance, so it slows guessing rather than
