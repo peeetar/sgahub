@@ -183,3 +183,32 @@ export async function alertState(id: number, to: "ack" | "resolve"): Promise<Out
   const res = await piPost(`/alerts/${id}/${to}`, me.email);
   return settle(res, to === "ack" ? "Marked as being handled." : "Resolved.", "/kiosk/alerts", "/kiosk");
 }
+
+// --- upkeep and the attract-screen banner ------------------------------------------
+
+export async function saveBanner(text: string, from: string, to: string): Promise<Outcome> {
+  const me = await requireBoard();
+  const clean = text.trim().slice(0, 140);
+  const res = await piPut("/banner", me.email, { text: clean, active_from: from || null, active_to: to || null });
+  return settle(res, clean ? "Banner saved. The kiosk picks it up within a few seconds." : "Banner cleared.", "/kiosk/upkeep");
+}
+
+const every = (raw: string) => (raw === "" ? null : Number(raw));
+
+export async function addUpkeep(name: string, coffees: string, days: string): Promise<Outcome> {
+  const me = await requireBoard();
+  const res = await piPost("/upkeep", me.email, { name: name.trim().slice(0, 60), every_coffees: every(coffees), every_days: every(days) });
+  return settle(res, "Added.", "/kiosk/upkeep");
+}
+
+export async function upkeepDone(id: number): Promise<Outcome> {
+  const me = await requireBoard();
+  if (!Number.isInteger(id)) return bad("Bad task.");
+  return settle(await piPost(`/upkeep/${id}/done`, me.email), "Marked done.", "/kiosk/upkeep");
+}
+
+export async function deleteUpkeep(id: number): Promise<Outcome> {
+  const me = await requireBoard();
+  if (!Number.isInteger(id)) return bad("Bad task.");
+  return settle(await piDelete(`/upkeep/${id}`, me.email), "Removed.", "/kiosk/upkeep");
+}

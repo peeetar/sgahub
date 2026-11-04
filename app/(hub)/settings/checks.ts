@@ -24,6 +24,8 @@ export function setupChecks(): Check[] {
       help: "24+ random characters, the same value as HUB_TOKEN on the Pi. The Pi uses it to report in every minute." },
     { key: "PI_API_URL", label: "Coffee kiosk, live", ok: !!process.env.PI_API_URL && (process.env.PI_API_TOKEN || "").length >= 32, required: false,
       help: "PI_API_URL is the Pi's public address (Tailscale Funnel, https://<node>.<tailnet>.ts.net). PI_API_TOKEN is 32+ random characters, the same value as HUB_API_TOKEN on the Pi. Steps: deploy/funnel/README.md in sga-coffee-kiosk." },
+    { key: "CRON_SECRET", label: "Posting reminders", ok: has("CRON_SECRET"), required: false,
+      help: "Any long random string. With it, Vercel runs the content calendar's morning reminder; without it the reminder refuses to run and the calendar still works." },
     { key: "NTFY_TOPIC", label: "ntfy alerts", ok: has("NTFY_TOPIC"), required: true,
       help: "A long, hard-to-guess topic name (anyone who knows it can read it). Optional NTFY_URL for a self-hosted server and NTFY_TOKEN for a protected topic." },
   ];

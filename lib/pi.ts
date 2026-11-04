@@ -48,13 +48,27 @@ async function call<T>(method: string, path: string, actor: string, body?: unkno
   return { ok: false, kind: res.status >= 500 ? "offline" : "refused", status: res.status, message: data?.message || `The kiosk answered ${res.status}.` };
 }
 
-export const piGet = <T>(path: string, actor: string) => call<T>("GET", path, actor);
+export const piGet = <T>(path: string, actor: string, timeoutMs?: number) => call<T>("GET", path, actor, undefined, timeoutMs);
 export const piPost = <T = object>(path: string, actor: string, body: unknown = {}, timeoutMs?: number) => call<T>("POST", path, actor, body, timeoutMs);
 export const piPut = <T = object>(path: string, actor: string, body: unknown) => call<T>("PUT", path, actor, body);
 export const piDelete = <T = object>(path: string, actor: string) => call<T>("DELETE", path, actor);
 
+/** A capsule's picture, for the flavour posts. Pictures are the one thing the
+ *  hub reads off the Pi that isn't JSON. Null when there's no picture to show. */
+export async function piPicture(path: string): Promise<Response | null> {
+  if (!piConfigured() || !/^capsules\/[A-Za-z0-9_-][A-Za-z0-9._-]{0,59}\/pod\.(png|jpe?g|webp)$/.test(path)) return null;
+  const res = await fetch(`${process.env.PI_API_URL!.replace(/\/+$/, "")}/admin/static/${path}`, {
+    cache: "no-store", redirect: "error", signal: AbortSignal.timeout(TIMEOUT_MS),
+    headers: { Authorization: `Bearer ${process.env.PI_API_TOKEN}` },
+  }).catch(() => null);
+  return res?.ok ? res : null;
+}
+
 // --- what the Pi sends back ---------------------------------------------------
 
+export type PiLaunch = { coffees_served: number; students_registered: number; flavours_offered: number; days_running: number };
+export type PiCapsule = { sku: string; name: string; pod_image: string; [key: string]: unknown };
+export type PiAudit = { at: string; diff?: { after?: { sku?: string | null } } | null };
 export type PiColumn = {
   column_index: number; sku: string | null; name?: string | null; bg_color?: string | null; stock: number; capacity: number;
   low_threshold: number; enabled: number; jam_count: number; consecutive_jams: number;
@@ -78,4 +92,6 @@ export type PiStudent = {
 };
 export type PiTimelineItem = { id: number; at: string; kind: string; reason?: string | null; amount: number; balance: number; cash_cents?: number | null; actor?: string | null; state?: string | null; sku?: string | null };
 export type PiStudentDetail = { student: PiStudent; timeline: PiTimelineItem[]; signup: { credits?: number } | null; history_matches: boolean };
+export type PiUpkeepTask = { id: number; name: string; every_coffees: number | null; every_days: number | null; state: "due" | "soon" | "ok"; summary: string };
+export type PiBanner = { text: string; state: "off" | "showing" | "scheduled" | "expired"; from_local: string | null; to_local: string | null };
 export type PiConfig = { bundles: { cents: number; coffees: number }[]; student_id_length: number; column_capacity: number };
