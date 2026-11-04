@@ -118,7 +118,7 @@ function PersonDialog({ roles, term, person, role_id, onClose }: {
         <label className="lbl">Username (to sign in)<input className="field field--sm" value={f.username} autoCapitalize="none" spellCheck={false} maxLength={32} onChange={set("username")} placeholder="petar" /></label>
         <label className="lbl">{person?.username ? "New password (leave empty to keep theirs)" : "Password"}
           <span className="row">
-            <input className="field field--sm grow mono" value={f.password} autoComplete="off" spellCheck={false} onChange={set("password")} placeholder="at least 10 characters" />
+            <input className="field field--sm grow mono" value={f.password} autoComplete="off" spellCheck={false} onChange={set("password")} placeholder="at least 8 characters" />
             <button type="button" className="btn btn--sm" onClick={() => setF({ ...f, password: makePassword() })}>Generate</button>
           </span>
         </label>

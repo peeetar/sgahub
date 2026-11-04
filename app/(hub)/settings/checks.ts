@@ -9,7 +9,7 @@ export function setupChecks(): Check[] {
     { key: "DATABASE_URL", label: "Database", ok: has("DATABASE_URL"), required: true,
       help: "Vercel → Storage → add Neon. Use the same database the old merch till used, so its sales and stock carry over." },
     { key: "HUB_SECRET", label: "Session secret", ok: (process.env.HUB_SECRET || "").length >= 32, required: true,
-      help: "A random string of 32+ characters (e.g. `openssl rand -base64 48`). Changing it signs everyone out." },
+      help: "The key that signs login cookies. Nobody types it, so make it long and random: 32+ characters, e.g. `openssl rand -base64 48`. Changing it signs everyone out." },
     { key: "HUB_PASSWORD", label: "Emergency shared password", ok: (process.env.HUB_PASSWORD || "").length >= 12, required: true,
       help: "12+ characters. Gets the first person in before anyone has a personal login (then People → set usernames and passwords), and is the way back in if one is lost. Keep it in the SGA password manager." },
     { key: "POS_PASSWORD", label: "Till password", ok: has("POS_PASSWORD"), required: true,
