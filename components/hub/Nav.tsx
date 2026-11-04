@@ -44,7 +44,7 @@ export default function Nav({ email }: { email: string }) {
         <a href="/pos" className="navitem navitem--till"><i aria-hidden="true">▶</i>Open the till</a>
       </nav>
       <form method="post" action="/api/auth/logout" className="side-nav__me">
-        <span title={email}>{email}</span>
+        <Link href="/account" title="Account and password" onClick={() => setOpen(false)}>{email}</Link>
         <button className="linkbtn linkbtn--light">Sign out</button>
       </form>
     </aside>

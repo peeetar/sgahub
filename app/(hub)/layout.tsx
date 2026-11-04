@@ -8,7 +8,7 @@ export default async function HubLayout({ children }: { children: React.ReactNod
   const me = await requireBoard();
   return (
     <div className="hub">
-      <Nav email={me.email} />
+      <Nav email={me.username ? `@${me.username}` : me.email} />
       <div className="hub__main">{children}</div>
     </div>
   );
