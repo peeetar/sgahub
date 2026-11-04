@@ -10,7 +10,7 @@ export function setupChecks(): Check[] {
       help: "Vercel → Storage → add Neon. Use the same database the old merch till used, so its sales and stock carry over." },
     { key: "HUB_SECRET", label: "Session secret", ok: (process.env.HUB_SECRET || "").length >= 32, required: true,
       help: "The key that signs login cookies. Nobody types it, so make it long and random: 32+ characters, e.g. `openssl rand -base64 48`. Changing it signs everyone out." },
-    { key: "HUB_PASSWORD", label: "Emergency shared password", ok: (process.env.HUB_PASSWORD || "").length >= 8, required: true,
+    { key: "HUB_PASSWORD", label: "Emergency shared password", ok: (process.env.HUB_PASSWORD || "").trim().length >= 8, required: true,
       help: "8+ characters. Gets the first person in before anyone has a personal login (then People → set usernames and passwords), and is the way back in if one is lost. Keep it in the SGA password manager." },
     { key: "POS_PASSWORD", label: "Till password", ok: has("POS_PASSWORD"), required: true,
       help: "The password sellers type on the tablet. Shared with volunteers, so it's separate from the board login." },

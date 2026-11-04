@@ -118,10 +118,18 @@ export async function passwordLogin(username: string, password: string): Promise
   return row && row.password_hash && ok ? { email: row.email || row.username, username: row.username } : null;
 }
 
+// Trimmed, because a space or newline pasted into the Vercel field with the
+// password is the commonest reason a correct password is refused.
+const sharedPassword = () => (process.env.HUB_PASSWORD || "").trim();
+
+export function sharedPasswordState(): "unset" | "short" | "ok" {
+  const n = sharedPassword().length;
+  return n === 0 ? "unset" : n < PASSWORD_MIN ? "short" : "ok";
+}
+
 /** The emergency shared password. */
 export function sharedPasswordMatches(given: string): boolean {
-  const want = process.env.HUB_PASSWORD || "";
-  return want.length >= PASSWORD_MIN && safeEqual(want, given);
+  return sharedPasswordState() === "ok" && safeEqual(sharedPassword(), given.trim());
 }
 
 // Best effort: per function instance, so it slows guessing rather than
