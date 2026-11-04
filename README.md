@@ -33,7 +33,7 @@ Everyone on the board has the same access.
   stored as salted scrypt hashes, never in plain text. No email is sent, so no
   domain or mail service is needed. A device stays signed in for 30 days, and
   people change their own password under **Account**.
-- **Emergency password**: if `HUB_PASSWORD` is set (12+ characters), *Use the
+- **Emergency password**: if `HUB_PASSWORD` is set (8+ characters), *Use the
   emergency shared password* signs in without a username. It is how the first
   person gets in before anyone has a login, and the way back if someone is
   locked out. Keep it in the SGA password manager.
@@ -192,7 +192,7 @@ ntfy topic.
 7. **Kiosk**: `KIOSK_TOKEN` (24+ random characters, the same as `HUB_TOKEN`
    on the Pi), and `PI_API_URL` and `PI_API_TOKEN` for
    the live pages (`deploy/funnel/README.md` in `sga-coffee-kiosk`).
-8. Set `HUB_PASSWORD` (12+ characters), sign in with it, go to **People**,
+8. Set `HUB_PASSWORD` (8+ characters), sign in with it, go to **People**,
    then *Paste a list*, and give each person a username and password (open
    them → Username, Password). From then on everyone signs in as themselves.
 9. Move the merch tablets together, between sales: sync each one on the old

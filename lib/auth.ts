@@ -121,7 +121,7 @@ export async function passwordLogin(username: string, password: string): Promise
 /** The emergency shared password. */
 export function sharedPasswordMatches(given: string): boolean {
   const want = process.env.HUB_PASSWORD || "";
-  return want.length >= 12 && safeEqual(want, given);
+  return want.length >= PASSWORD_MIN && safeEqual(want, given);
 }
 
 // Best effort: per function instance, so it slows guessing rather than
