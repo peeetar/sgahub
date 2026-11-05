@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireBoard } from "@/lib/auth";
 import { setSetting } from "@/lib/db";
+import { CATEGORIES, importSchedule, parseSchedule } from "@/lib/events";
 import { appUrl, notify } from "@/lib/notify";
 
 export async function sendTestAlert(): Promise<string> {
@@ -19,4 +20,28 @@ export async function startTerm(term: string): Promise<string | null> {
   await setSetting("term", term);
   revalidatePath("/", "layout");
   return null;
+}
+
+export type SchedulePreview = {
+  errors: string[];
+  events: { day: string; until: string | null; time: string; title: string; place: string; type: string }[];
+};
+
+/** What pasting this text would add, without adding it. */
+export async function previewSchedule(text: string): Promise<SchedulePreview> {
+  await requireBoard();
+  const { events, errors } = parseSchedule(String(text ?? "").slice(0, 50_000));
+  return {
+    errors,
+    events: events.slice(0, 200).map((e) => ({ day: e.starts_on, until: e.ends_on, time: e.start_time ? e.start_time + (e.end_time ? `–${e.end_time}` : "") : "All day",
+      title: e.title, place: e.location, type: CATEGORIES[e.category] })),
+  };
+}
+
+/** Put a pasted schedule on the calendar. All or nothing; pasting it twice adds nothing new. */
+export async function addSchedule(text: string): Promise<{ added: number; existing: number; errors: string[] }> {
+  const me = await requireBoard();
+  const r = await importSchedule(String(text ?? "").slice(0, 50_000), me.username ? `@${me.username}` : me.email);
+  if (!r.errors.length) { revalidatePath("/calendar"); revalidatePath("/"); }
+  return r;
 }

@@ -149,3 +149,125 @@ export async function listProjects(): Promise<{ id: string; title: string }[]> {
   }
   return out;
 }
+
+// --- action items: reading them out of the meeting notes, and ticking them off ----
+//
+// A meeting page carries its action items as tables (Task | Owner | Due |
+// Status) under a heading such as "Action items" or "Open tasks". Newer pages
+// also carry the earlier meetings' open items forward, so the Hub looks only
+// at the latest few pages, newest first, and the first time a task is seen
+// is the row it's tied to.
+
+type NotionRT = { type: string; plain_text?: string; href?: string | null; annotations?: Record<string, unknown>;
+  text?: { content: string; link?: { url: string } | null };
+  mention?: { type: string; date?: { start: string; end?: string | null; time_zone?: string | null }; page?: { id: string } } };
+
+const plainText = (rt: NotionRT[] = []) => rt.map((t) => t.plain_text ?? t.text?.content ?? "").join("").replace(/\s+/g, " ").trim();
+
+/** A date written as a Notion date mention, or as YYYY-MM-DD in the text. */
+function dueOf(rt: NotionRT[] = []): string | null {
+  const m = rt.find((t) => t.type === "mention" && t.mention?.type === "date");
+  const start = m?.mention?.date?.start;
+  if (start) return start.slice(0, 10);
+  return plainText(rt).match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? null;
+}
+
+export type TaskStatus = "open" | "in_progress" | "blocked" | "done";
+const statusOf = (s: string): TaskStatus =>
+  /done|complete/i.test(s) ? "done"
+  : /block/i.test(s) ? "blocked"
+  : /not started|to ?do/i.test(s) ? "open"
+  : /progress|doing|started/i.test(s) ? "in_progress"
+  : "open";
+export const NOTION_STATUS: Record<TaskStatus, string> = { open: "Not started", in_progress: "In progress", blocked: "Blocked", done: "Done" };
+
+export type ActionRow = {
+  blockId: string; col: number; pageId: string; pageUrl: string; meeting: string;
+  task: string; owner: string; due: string | null; status: TaskStatus;
+};
+
+type Block = { id: string; type: string; has_children?: boolean;
+  table?: { has_column_header?: boolean };
+  table_row?: { cells: NotionRT[][] };
+  [k: string]: unknown };
+
+async function children(id: string): Promise<Block[]> {
+  const out: Block[] = [];
+  let cursor: string | undefined;
+  for (let i = 0; i < 20; i++) {
+    const res = await call<{ results: Block[]; has_more: boolean; next_cursor?: string }>(
+      "GET", `/blocks/${id}/children?page_size=100${cursor ? `&start_cursor=${cursor}` : ""}`);
+    out.push(...res.results);
+    if (!res.has_more || !res.next_cursor) break;
+    cursor = res.next_cursor;
+  }
+  return out;
+}
+
+/** The action-item rows on one meeting page, in the order they're written. */
+async function rowsOnPage(page: { id: string; url: string; title: string }): Promise<ActionRow[]> {
+  const out: ActionRow[] = [];
+  let inSection = false;
+  for (const b of await children(page.id)) {
+    if (b.type === "heading_1" || b.type === "heading_2" || b.type === "heading_3") {
+      const rich = (b[b.type] as { rich_text?: NotionRT[] } | undefined)?.rich_text;
+      inSection = /action items|open tasks/i.test(plainText(rich));
+      continue;
+    }
+    if (b.type !== "table" || !inSection) continue;
+    const rows = (await children(b.id)).filter((r) => r.type === "table_row" && r.table_row);
+    const head = b.table?.has_column_header ? rows.shift() : undefined;
+    const names = (head?.table_row?.cells ?? []).map((c) => plainText(c).toLowerCase());
+    const find = (re: RegExp, fallback: number) => { const i = names.findIndex((n) => re.test(n)); return i >= 0 ? i : fallback; };
+    const [iTask, iOwner, iDue, iStatus] = [find(/task|item|action/, 0), find(/owner|who|assign/, 1), find(/due|date|deadline/, 2), find(/status|state/, 3)];
+    for (const r of rows) {
+      const cells = r.table_row!.cells;
+      const task = plainText(cells[iTask]);
+      if (!task) continue;
+      out.push({ blockId: r.id, col: iStatus, pageId: page.id, pageUrl: page.url, meeting: page.title, task,
+        owner: plainText(cells[iOwner]), due: dueOf(cells[iDue]), status: statusOf(plainText(cells[iStatus])) });
+    }
+  }
+  return out;
+}
+
+/** Action items from the newest `meetings` pages of the Meetings database. */
+export async function fetchActionRows(meetings: number): Promise<{ rows: ActionRow[]; pages: string[] }> {
+  const ds = process.env.NOTION_MEETINGS_DATA_SOURCE;
+  const res = await call<{ results: { id: string; url: string; properties: Record<string, { type: string; title?: NotionRT[] }> }[] }>(
+    "POST", `/data_sources/${ds}/query`, { page_size: Math.max(1, Math.min(10, meetings)), sorts: [{ timestamp: "created_time", direction: "descending" }] });
+  const rows: ActionRow[] = [];
+  const pages: string[] = [];
+  for (const p of res.results) {
+    const title = plainText(Object.values(p.properties).find((v) => v.type === "title")?.title) || "Meeting";
+    pages.push(title);
+    rows.push(...await rowsOnPage({ id: p.id, url: p.url, title }));
+  }
+  return { rows, pages };
+}
+
+/** One cell of a rich-text array, rebuilt so Notion accepts it back (the
+ *  read-only fields it sends are dropped; a mention it can't rebuild stays as text). */
+function backToInput(t: NotionRT): RT {
+  const ann = t.annotations ? { annotations: t.annotations } : {};
+  if (t.type === "mention" && t.mention?.type === "date" && t.mention.date) {
+    const { start, end, time_zone } = t.mention.date;
+    return { type: "mention", mention: { type: "date", date: { start, ...(end ? { end } : {}), ...(time_zone ? { time_zone } : {}) } }, ...ann };
+  }
+  if (t.type === "mention" && t.mention?.type === "page" && t.mention.page) {
+    return { type: "mention", mention: { type: "page", page: { id: t.mention.page.id } }, ...ann };
+  }
+  const link = t.text?.link?.url ? { link: { url: t.text.link.url } } : {};
+  return { type: "text", text: { content: t.plain_text ?? t.text?.content ?? "", ...link }, ...ann };
+}
+
+/** Write a status into the Status cell of the table row a task came from, and
+ *  leave every other cell as it was. Needs the integration's "Update content" permission. */
+export async function pushRowStatus(blockId: string, col: number, status: TaskStatus): Promise<void> {
+  const block = await call<Block>("GET", `/blocks/${blockId}`);
+  if (block.type !== "table_row" || !block.table_row) throw new Error("That row is no longer in the meeting notes.");
+  const cells = block.table_row.cells.map((cell) => cell.map(backToInput));
+  if (col < 0 || col >= cells.length) throw new Error("The table doesn't have a Status column.");
+  cells[col] = txt(NOTION_STATUS[status]);
+  await call("PATCH", `/blocks/${blockId}`, { table_row: { cells } });
+}
