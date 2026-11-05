@@ -12,15 +12,17 @@ Next.js on Vercel (`fra1`), Neon Postgres, ntfy for alerts, per-person username 
 
 | Module | Status |
 |---|---|
-| **Overview**: today's takings, open cash boxes, what's running low, the board | ✅ |
+| **Overview**: overdue tasks, this month's calendar and what's next, a finance summary, takings, what's running low, the board | ✅ |
+| **Calendar**: month / week / list, drag to move, an Upcoming sidebar, schedules pasted from Settings | ✅ |
+| **Tasks**: a to-do list with owners and due dates, fed by the open action items in the Notion meeting notes | ✅ |
 | **Till** (`/pos`): the tablet till, offline-first, cash only | ✅ |
 | **Till & merch** (`/merch`): takings, stock on hand, cash boxes, sales CSV | ✅ |
 | **People**: every SGA position, who holds it this term, handover | ✅ |
-| **Settings**: setup checklist, ntfy topic and test alert, term switch | ✅ |
+| **Settings**: setup checklist, ntfy topic and test alert, term switch, event schedule import | ✅ |
+| **Vault** (Settings → Vault): every password, key and login the SGA holds, by project, behind its own master password | ✅ |
 | **Finance**: one ledger for till sales, kiosk top-ups, spending, receipts and reimbursements | ✅ |
 | **Meetings**: voice memo → Gemini → notes and transcript in Notion | ✅ |
 | **Coffee kiosk**: live status, selling with a cash box, students, stock, sign-ups, alerts, cash, sales, system and the activity log | ✅ with `sga-coffee-kiosk` |
-| **Documents**: photos and files in a private Vercel Blob store | ✅ |
 | Event supplies: snacks, drinks, BBQ stock and a how-much-to-buy planner | on hold, waiting for past receipts |
 | Year-end report (PDF) | on hold, contents to be decided |
 
@@ -123,6 +125,61 @@ coffee. On a morning a post is due, `/api/calendar/remind` sends one ntfy messag
 naming the owner. It runs on a Vercel cron at 06:00 UTC and refuses to run
 without `CRON_SECRET`.
 
+## Calendar
+
+`/calendar` shows the board's events as a month, a week or a list, with an
+**Upcoming** sidebar of everything coming soon. Click a day to add an event;
+click an event to edit it; drag it to another day to move it (a multi-day event
+keeps its length). Events have a type (Event, Meeting, Deadline, Coffee Space,
+Merch, Marketing, School), optional times and a place.
+
+A whole schedule can be pasted in **Settings → Event schedule**, one event per
+line: `date | time | title | place | type | notes`. The date can be
+`2026-11-09`, `9/11/2026` or `9.11.2026`, or a range `2026-11-16..2026-11-20`;
+everything after the title is optional, and lines starting with `#` are
+ignored. *Check it* shows what would be added without adding it, and a mistake
+anywhere adds nothing. Pasting the same list twice adds nothing new.
+When a meeting's notes name the next meeting, it lands on the calendar too.
+
+## Tasks
+
+`/tasks` groups open tasks as Overdue, Today, Next 7 days, Later and No date,
+with an owner on each and a filter for *Mine*. Tick the circle to close one.
+You can add your own, or pull in the **open action items** from the Notion
+meeting notes (*Sync from Notion*, and automatically after each filed meeting
+and every morning).
+
+How the Notion link works: each meeting page has an action-items table
+(Task, Owner, Due, Status). The sync reads the latest few pages, matches the
+Owner to a person on *People* by first name, and keeps one Hub task per
+distinct action item (items carried from meeting to meeting are not
+duplicated). It never reopens a task you closed. Closing a task in the Hub
+writes *Done* into the Status cell of that table row; if Notion refuses, the
+task shows "Not updated in Notion" with a *Try again*. Owner and due date set
+in the Hub stay in the Hub.
+
+## Vault
+
+**Settings → Vault** is where every secret lives: the Hub's environment
+variables, the coffee machine (Pi login, tokens, backups, Tailscale), social
+media, Notion and Gemini, alerts and monitoring, the SGA mailbox and the
+accounts that hang off it. Open it, confirm, type `VAULT_PASSWORD`; it stays
+open for 10 minutes. The first time in, a starter list of everything the SGA is
+known to hold is added with the values empty, to be filled in by the board. You
+can add, edit and delete entries and categories.
+
+- Saved values are encrypted (AES-256-GCM, key derived from `VAULT_PASSWORD`),
+  so a database copy shows nothing. Anyone who can read Vercel's environment
+  variables can still open it. Values are only sent to the browser when someone
+  presses *Show* or *Copy*, and every open, view, copy and change is logged
+  with a name (never the value).
+- This repository is public, so the starter list names kinds of secret only:
+  no usernames, hosts, people or values are in the code.
+- To change the password: put the old one in `VAULT_PASSWORD_PREVIOUS`, set the
+  new `VAULT_PASSWORD`, redeploy, open the vault and press *Re-encrypt*, then
+  remove the old variable. A lost vault password cannot be recovered; keep it
+  in your own password manager too.
+
 ## Meetings
 
 *+ New recording*: pick board / Dean / other, the date, who was there, and the
@@ -218,18 +275,23 @@ ntfy topic.
    connected to the project (sets `BLOB_READ_WRITE_TOKEN`).
 5. **Gemini**: a free API key from aistudio.google.com, made with the SGA
    Google account → `GEMINI_API_KEY`.
-6. **Notion**: an internal integration in the SGA workspace
-   (notion.so/my-integrations). Connect it to the Meetings and Projects
-   databases (••• → Connections), then set `NOTION_TOKEN`,
-   `NOTION_MEETINGS_DATA_SOURCE` (the Meetings data source id) and optionally
-   `NOTION_PROJECTS_DATA_SOURCE`.
+6. **Notion** (meetings and tasks): at notion.so/my-integrations create an
+   *internal* integration in the SGA workspace, with the **Read content**,
+   **Update content** and **Insert content** capabilities (Update is what lets
+   Tasks write *Done* back). Copy its *Internal Integration Secret* →
+   `NOTION_TOKEN`. Open the Meetings database in Notion → ••• → **Connections**
+   → add the integration (do the same for Projects). The data source id is the
+   `collection://…` id Notion shows for the database (*Copy data source ID* in
+   the database's ••• menu) → `NOTION_MEETINGS_DATA_SOURCE`, and optionally
+   `NOTION_PROJECTS_DATA_SOURCE`. Redeploy, then *Tasks → Sync from Notion*.
 7. **Kiosk**: `KIOSK_TOKEN` (24+ random characters, the same as `HUB_TOKEN`
    on the Pi), and `PI_API_URL` and `PI_API_TOKEN` for
    the live pages (`deploy/funnel/README.md` in `sga-coffee-kiosk`).
-8. Set `HUB_PASSWORD` (8+ characters), sign in with it, go to **People**,
+8. Set `VAULT_PASSWORD` (12+ characters) for Settings → Vault.
+9. Set `HUB_PASSWORD` (8+ characters), sign in with it, go to **People**,
    then *Paste a list*, and give each person a username and password (open
    them → Username, Password). From then on everyone signs in as themselves.
-9. Move the merch tablets together, between sales: sync each one on the old
+10. Move the merch tablets together, between sales: sync each one on the old
    address, then add `https://sgahub.vercel.app/pos` to its home screen. Unsynced
    sales don't carry over, because the new address has its own offline storage.
    Retire the old till's Vercel project once every tablet has moved.
@@ -247,7 +309,7 @@ the typecheck and build on every push and PR.
    and password.
 2. **Settings → Handover → Switch term.** From then on only the new board can
    sign in; last year's stays on record under its own term.
-3. Rotate `POS_PASSWORD`, `HUB_PASSWORD` and, if anyone leaving knew it, the
+3. Rotate `POS_PASSWORD`, `HUB_PASSWORD`, `VAULT_PASSWORD` (see Vault) and, if anyone leaving knew it, the
    ntfy topic. Change `HUB_SECRET` too: it signs every device out, including
    the old board's. Update the SGA password manager.
 4. Make sure the Vercel, Neon and GitHub accounts are owned by the SGA
@@ -270,7 +332,7 @@ still sells offline, and the hub pages say the database is missing.
 
 ## Files
 
-- `app/(hub)/`: board pages (overview, merch, people, settings), behind `requireBoard()`
+- `app/(hub)/`: board pages (overview, calendar, tasks, merch, people, settings, vault), behind `requireBoard()`
 - `app/pos/`: the till · `components/`: its screens (`Sell`, `Stock`, `CashBox`, `Stats`)
 - `app/api/auth/*`: sign-in links, fallback password · `app/api/pos/*`: till login and sync
 - `lib/auth.ts`: board sessions and sign-in tokens · `lib/session.ts`: the till's session
@@ -280,6 +342,7 @@ still sells offline, and the hub pages say the database is missing.
 - `lib/notify.ts`: ntfy · `lib/time.ts`: Athens days and times
 - `lib/finance.ts`, `lib/sheet-import.ts`: the ledger and the Google Sheet paste
 - `lib/meetings.ts`, `lib/gemini.ts`, `lib/notion.ts`: the meetings pipeline
+- `lib/events.ts`, `lib/days.ts`: the calendar · `lib/tasks.ts`: tasks and the Notion sync · `lib/vault.ts`: the vault
 - `lib/kiosk.ts`, `app/api/kiosk/*`: the kiosk's reports and commands
 - `lib/marketing.ts`, `lib/content-calendar.ts`, `app/api/marketing/*`, `app/api/calendar/*`: Marketing HQ and the calendar
 - `components/marketing/`: their tools, plain DOM modules mounted by `MarketingHost.tsx`

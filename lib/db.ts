@@ -176,6 +176,81 @@ export function ensureSchema() {
         created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
       )`,
+      // The board's calendar: school dates, SGA events, deadlines, meetings.
+      // `ends_on` is the last day of a multi-day event (NULL: one day) and a
+      // NULL `start_time` means all day. `import_ref` makes a pasted schedule
+      // safe to paste twice.
+      q`CREATE TABLE IF NOT EXISTS hub_events (
+        id          TEXT PRIMARY KEY,
+        title       TEXT NOT NULL,
+        starts_on   DATE NOT NULL,
+        ends_on     DATE,
+        start_time  TEXT,
+        end_time    TEXT,
+        location    TEXT NOT NULL DEFAULT '',
+        category    TEXT NOT NULL DEFAULT 'event',
+        notes       TEXT NOT NULL DEFAULT '',
+        source      TEXT NOT NULL DEFAULT 'manual',
+        import_ref  TEXT UNIQUE,
+        created_by  TEXT NOT NULL,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`,
+      q`CREATE INDEX IF NOT EXISTS hub_events_day ON hub_events (starts_on)`,
+      // Tasks. Some are typed in; others are action items read from the Notion
+      // meeting notes (`source = 'notion'`), keyed by the table row they came
+      // from so closing one here can be written back to that row.
+      q`CREATE TABLE IF NOT EXISTS hub_tasks (
+        id               TEXT PRIMARY KEY,
+        title            TEXT NOT NULL,
+        notes            TEXT NOT NULL DEFAULT '',
+        owner_id         TEXT REFERENCES hub_people(id) ON DELETE SET NULL,
+        owner_name       TEXT NOT NULL DEFAULT '',
+        due_on           DATE,
+        status           TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'blocked', 'done', 'dismissed')),
+        source           TEXT NOT NULL DEFAULT 'manual',
+        title_key        TEXT NOT NULL DEFAULT '',
+        notion_block_id  TEXT,
+        notion_col       INT,
+        notion_page_id   TEXT,
+        notion_url       TEXT,
+        meeting_title    TEXT,
+        notion_error     TEXT,
+        completed_at     TIMESTAMPTZ,
+        completed_by     TEXT,
+        created_by       TEXT NOT NULL,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`,
+      q`CREATE INDEX IF NOT EXISTS hub_tasks_due ON hub_tasks (due_on)`,
+      q`CREATE INDEX IF NOT EXISTS hub_tasks_key ON hub_tasks (title_key)`,
+      // The vault: every secret the SGA holds. Values are encrypted (AES-256-GCM,
+      // key derived from VAULT_PASSWORD), so a copy of the database alone reads
+      // as noise. `seed_key` marks entries from the starter list so adding it
+      // again never duplicates.
+      q`CREATE TABLE IF NOT EXISTS hub_vault (
+        id          TEXT PRIMARY KEY,
+        category    TEXT NOT NULL,
+        label       TEXT NOT NULL,
+        kind        TEXT NOT NULL DEFAULT 'password',
+        username    TEXT NOT NULL DEFAULT '',
+        url         TEXT NOT NULL DEFAULT '',
+        secret_enc  TEXT,
+        notes       TEXT NOT NULL DEFAULT '',
+        sort        INT NOT NULL DEFAULT 0,
+        seed_key    TEXT UNIQUE,
+        updated_by  TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`,
+      // Who opened the vault and what they touched. Never the values.
+      q`CREATE TABLE IF NOT EXISTS hub_vault_log (
+        id      SERIAL PRIMARY KEY,
+        at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        who     TEXT NOT NULL,
+        action  TEXT NOT NULL,
+        detail  TEXT NOT NULL DEFAULT ''
+      )`,
     ]);
     // The positions are the same every year; who holds them is not, so only
     // the roles are seeded. People are added from the People page.

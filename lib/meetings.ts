@@ -12,8 +12,10 @@
 // page, so no single function has to outlive the platform's time limit.
 import { get, del } from "@vercel/blob";
 import { ensureSchema, getSetting, sql } from "./db";
+import { noteNextMeeting } from "./events";
 import { deleteFile, generate, uploadFile, type GeminiFile } from "./gemini";
 import { fileMeeting, listProjects, notionConfigured } from "./notion";
+import { syncNotion } from "./tasks";
 
 export type Step = "upload" | "transcribe" | "notes" | "notion" | "done";
 export const STEP_LABEL: Record<Step, string> = {
@@ -219,6 +221,10 @@ async function stepNotion(m: Meeting) {
     projectIds: projects.filter((p) => m.notes!.projects.includes(p.title)).map((p) => p.id),
   });
   await sql()`UPDATE hub_meetings SET notion_url = ${url} WHERE id = ${m.id}`;
+  // Best effort, and never a reason to fail the filing: the next meeting goes
+  // on the calendar, and the new action items are pulled into Tasks.
+  await noteNextMeeting(m.id, KINDS[m.kind], m.notes.next_meeting.date, m.notes.next_meeting.time).catch((err) => console.error("next meeting", err));
+  await syncNotion(3).catch((err) => console.error("tasks sync", err));
   if (m.audio_path) {
     await del(m.audio_path).catch((err) => console.error("blob del", err));
     await sql()`UPDATE hub_meetings SET audio_path = NULL WHERE id = ${m.id}`;

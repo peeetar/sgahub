@@ -10,19 +10,20 @@ type Item = { href: string; label: string; icon: string; soon?: string };
 // cover; they turn into links as they're built.
 const ITEMS: Item[] = [
   { href: "/", label: "Overview", icon: "◎" },
+  { href: "/calendar", label: "Calendar", icon: "▣" },
+  { href: "/tasks", label: "Tasks", icon: "☑" },
+  { href: "/meetings", label: "Meetings", icon: "◉" },
   { href: "/merch", label: "Till & merch", icon: "▦" },
   { href: "/supplies", label: "Event supplies", icon: "◫", soon: "Snacks, drinks and BBQ stock, with a how-much-to-buy planner" },
   { href: "/finance", label: "Finance", icon: "€" },
-  { href: "/meetings", label: "Meetings", icon: "◉" },
   { href: "/kiosk", label: "Coffee kiosk", icon: "☕" },
   { href: "/marketing", label: "Marketing", icon: "✦" },
-  { href: "/documents", label: "Documents", icon: "▤" },
   { href: "/reports", label: "Year-end report", icon: "▧", soon: "PDF report for the last meeting of the year" },
   { href: "/people", label: "People", icon: "◍" },
   { href: "/settings", label: "Settings", icon: "⚙" },
 ];
 
-export default function Nav({ email }: { email: string }) {
+export default function Nav({ email, overdue = 0 }: { email: string; overdue?: number }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const on = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(href + "/"));
@@ -40,6 +41,7 @@ export default function Nav({ email }: { email: string }) {
         ) : (
           <Link key={it.href} href={it.href} className={"navitem" + (on(it.href) ? " is-on" : "")} onClick={() => setOpen(false)}>
             <i aria-hidden="true">{it.icon}</i>{it.label}
+            {it.href === "/tasks" && overdue > 0 && <b className="navitem__badge" title={`${overdue} overdue`}>{overdue > 99 ? "99+" : overdue}</b>}
           </Link>
         ))}
         <a href="/pos" className="navitem navitem--till"><i aria-hidden="true">▶</i>Open the till</a>

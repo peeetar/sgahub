@@ -1,9 +1,10 @@
+import Link from "next/link";
 import { DbDown, Panel } from "@/components/hub/bits";
 import { requireBoard } from "@/lib/auth";
 import { currentTerm } from "@/lib/db";
 import { piConfigured, piGet } from "@/lib/pi";
 import { setupChecks } from "./checks";
-import { TermForm, TestAlert } from "./SettingsForms";
+import { ScheduleImport, TermForm, TestAlert } from "./SettingsForms";
 
 export const metadata = { title: "Settings · SGA Hub" };
 
@@ -33,6 +34,17 @@ export default async function Settings() {
             </li>
           ))}
         </ul>
+      </Panel>
+
+      <Panel title="Vault">
+        <p>Every password, key and login the SGA holds, for the Hub, the coffee machine, social media and the rest, in one place.</p>
+        <p className="muted small">Opening it asks for the vault password (<code>VAULT_PASSWORD</code> in Vercel). Saved values are encrypted, shown only when someone presses Show or Copy, and each look is logged with a name.</p>
+        <p><Link href="/settings/vault" className="btn btn--primary">Open the vault</Link></p>
+      </Panel>
+
+      <Panel title="Event schedule">
+        <p className="muted small">Paste a list of dates and the calendar fills in. You can still add, edit and drag events on the Calendar afterwards.</p>
+        <ScheduleImport />
       </Panel>
 
       {pi && (
